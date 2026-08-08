@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bill Tracker — Integration Tests</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background:#0A1F1F; color:#F4FBFB; padding:24px; }
+  #results { max-width:900px; margin-bottom:32px; }
+  h2 { border-bottom:1px solid #275C5C; padding-bottom:8px; }
+  #app-fixture { opacity:0.3; border-top:2px dashed #275C5C; padding-top:16px; }
+</style>
+</head>
+<body>
+<div id="results">Running…</div>
+<pre id="machine-summary" style="display:none"></pre>
+
+<script src="test-lib.js"></script>
+<script src="fixture.js"></script>
+<script src="../app.js"></script>
+<script src="integration-tests.js"></script>
+<script>runAll('Integration Tests');</script>
+</body>
+</html>
