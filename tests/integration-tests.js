@@ -6,7 +6,7 @@ test('init() seeds 11 default bills when no saved data exists', () => {
   localStorage.removeItem(OLD_STORAGE_KEY);
   init();
   assertEqual(state.bills.length, 11);
-  assertEqual(state.bills[0].name, 'Mortgage');
+  assertEqual(state.bills[0].name, 'Rent');
 });
 
 test('stat cards reflect totals after reset', () => {

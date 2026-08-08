@@ -362,7 +362,7 @@ class Component extends DCLogic {
 
   state = {
     bills: [],
-    startingBalance: '8041.00',
+    startingBalance: '5000.00',
     expectedIncome: '0',
     isLight: false,
     search: '',
@@ -380,19 +380,19 @@ class Component extends DCLogic {
   componentDidMount(){
     const smart = fmtDateInput(getSmartDueDate());
     let bills = [
-      { id: uid(), name: 'Mortgage', amount: 3179.16, paid: false, confirmationNumber: '', dueDate: smart, category: 'Housing', recurring: true },
-      { id: uid(), name: 'Equitable', amount: 600.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Insurance', recurring: true },
-      { id: uid(), name: 'Costco Citi', amount: 1912.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
-      { id: uid(), name: 'Prime', amount: 397.23, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: true },
-      { id: uid(), name: 'Slate', amount: 256.65, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
-      { id: uid(), name: 'Sapphire', amount: 38.99, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
-      { id: uid(), name: 'Freedom', amount: 115.69, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
-      { id: uid(), name: 'Amex-4002', amount: 28.15, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
-      { id: uid(), name: 'Amex-5005', amount: 1157.99, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
-      { id: uid(), name: 'TJMax', amount: 77.75, paid: false, confirmationNumber: '', dueDate: smart, category: 'Shopping', recurring: false },
-      { id: uid(), name: 'CitizensAccess', amount: 256.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Savings', recurring: true }
+      { id: uid(), name: 'Rent', amount: 1500.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Housing', recurring: true },
+      { id: uid(), name: 'Renters Insurance', amount: 45.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Insurance', recurring: true },
+      { id: uid(), name: 'Credit Card A', amount: 650.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
+      { id: uid(), name: 'Credit Card B', amount: 210.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: true },
+      { id: uid(), name: 'Credit Card C', amount: 180.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
+      { id: uid(), name: 'Credit Card D', amount: 40.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
+      { id: uid(), name: 'Credit Card E', amount: 95.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
+      { id: uid(), name: 'Credit Card F', amount: 30.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
+      { id: uid(), name: 'Credit Card G', amount: 500.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Credit Card', recurring: false },
+      { id: uid(), name: 'Online Shopping', amount: 75.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Shopping', recurring: false },
+      { id: uid(), name: 'Savings Transfer', amount: 200.00, paid: false, confirmationNumber: '', dueDate: smart, category: 'Savings', recurring: true }
     ];
-    let startingBalance = '8041.00', expectedIncome = '0';
+    let startingBalance = '5000.00', expectedIncome = '0';
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
