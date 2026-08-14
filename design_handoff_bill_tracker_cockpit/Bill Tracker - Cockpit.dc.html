@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#0A1F1F; }
+  a { color:#17C7C7; }
+  a:hover { color:#2FE6A7; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; background:#0A1F1F; color:#F4FBFB; font-family:'Nunito Sans',sans-serif; padding:28px 32px 64px; box-sizing:border-box">
+  <div style="max-width:1360px; margin:0 auto; display:grid; grid-template-columns:340px 1fr; gap:26px; align-items:start">
+
+    <div style="display:flex; flex-direction:column; gap:16px">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+        <div style="font-family:'Lilita One',cursive; font-size:1.5rem; color:#17C7C7; letter-spacing:.5px; line-height:1.1">Bill Payment<br>Tracker</div>
+        <button style="width:48px; height:48px; border-radius:50%; border:2px solid #275C5C; background:#123636; color:#F4FBFB; font-size:1.2rem; cursor:pointer; flex:none" title="Switch to light">☀️</button>
+      </div>
+
+      <div style="background:#0D2828; border:2px solid #275C5C; border-radius:16px; padding:16px">
+        <div style="font-size:.72rem; font-weight:800; letter-spacing:.06em; color:#6E8C8C; text-transform:uppercase; margin-bottom:10px">Accounts</div>
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#17C7C7; color:#0A1F1F; border-radius:10px; padding:11px 13px; font-weight:800; font-size:.92rem"><span>Checking</span><span>$3,455</span></div>
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#123636; color:#A9C4C4; border-radius:10px; padding:11px 13px; font-weight:700; font-size:.92rem"><span>Savings</span><span>$8,200</span></div>
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#123636; color:#A9C4C4; border-radius:10px; padding:11px 13px; font-weight:700; font-size:.92rem"><span>Joint</span><span>$640</span></div>
+        </div>
+      </div>
+
+      <div style="background:#2FE6A7; border-radius:20px; padding:22px; box-shadow:0 6px 0 #17A97A">
+        <div style="font-size:.8rem; font-weight:800; letter-spacing:.06em; color:#062119; text-transform:uppercase">Move to savings</div>
+        <div style="font-family:'Lilita One',cursive; font-size:3.2rem; color:#062119; line-height:1.05; margin:2px 0">{{ savingsLabel }}</div>
+        <div style="font-size:.88rem; font-weight:700; color:#062119; opacity:.75; line-height:1.4">Live figure — no need to finish paying first.</div>
+        <div style="display:flex; flex-direction:column; gap:4px; margin-top:14px; font-size:.8rem; color:#062119; font-weight:700">
+          <div style="display:flex; justify-content:space-between; opacity:.72"><span>Balance now</span><span>{{ balanceLabel }}</span></div>
+          <div style="display:flex; justify-content:space-between; opacity:.72"><span>Bills still owed</span><span>− {{ owedLabel }}</span></div>
+          <div style="display:flex; justify-content:space-between; opacity:.72"><span>Minimum floor</span><span>− $900</span></div>
+          <div style="display:flex; justify-content:space-between; border-top:2px solid rgba(6,33,25,0.2); padding-top:5px; font-size:.92rem"><span>Free to move</span><span>{{ savingsLabel }}</span></div>
+        </div>
+        <button style="width:100%; margin-top:16px; background:{{ transferBg }}; color:{{ transferColor }}; border:none; border-radius:12px; padding:13px; font-weight:800; font-size:.92rem; cursor:pointer; font-family:'Nunito Sans',sans-serif">{{ transferLabel }}</button>
+        <div style="font-size:.76rem; color:#062119; opacity:.7; margin-top:8px; font-weight:700">{{ unsetNote }}</div>
+      </div>
+
+      <div style="background:#0D2828; border:2px solid #275C5C; border-radius:16px; padding:18px">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px">
+          <div style="font-size:.72rem; font-weight:800; letter-spacing:.06em; color:#6E8C8C; text-transform:uppercase">After every bill</div>
+        </div>
+        <div style="font-family:'Lilita One',cursive; font-size:2rem; color:#F4FBFB; line-height:1.1">{{ projectedLabel }}</div>
+        <div style="height:10px; background:#123636; border-radius:999px; overflow:hidden; margin:10px 0 6px">
+          <div style="height:100%; background:#17C7C7; border-radius:999px; width:{{ floorPct }}"></div>
+        </div>
+        <div style="font-size:.84rem; font-weight:700; color:#2FE6A7">{{ floorNote }}</div>
+      </div>
+
+      <div style="background:#0D2828; border:2px solid #275C5C; border-radius:16px; padding:18px">
+        <div style="font-size:.72rem; font-weight:800; letter-spacing:.06em; color:#6E8C8C; text-transform:uppercase; margin-bottom:14px">Where the month goes</div>
+        <div style="display:flex; justify-content:center; margin-bottom:16px">
+          <div style="width:180px; height:180px; border-radius:50%; position:relative; background:{{ pieStyle }}">
+            <div style="position:absolute; inset:42px; border-radius:50%; background:#0D2828; display:flex; flex-direction:column; align-items:center; justify-content:center">
+              <div style="font-family:'Lilita One',cursive; font-size:1.35rem; color:#F4FBFB; line-height:1.1">{{ catTotalLabel }}</div>
+              <div style="font-size:.68rem; font-weight:700; letter-spacing:.04em; color:#6E8C8C; text-transform:uppercase">this month</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:9px">
+          <sc-for list="{{ catBudget }}" as="c" hint-placeholder-count="5">
+            <div style="display:flex; align-items:center; gap:9px; font-size:.82rem; font-weight:700; color:#A9C4C4">
+              <span style="width:10px; height:10px; border-radius:3px; flex:none; background:{{ c.color }}"></span>
+              <span style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ c.name }}</span>
+              <span style="color:#F4FBFB">{{ c.amt }}</span>
+              <span style="width:34px; text-align:right; color:#6E8C8C">{{ c.pctLabel }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:#0D2828; border:2px solid #275C5C; border-radius:16px; padding:18px">
+        <div style="font-size:.72rem; font-weight:800; letter-spacing:.06em; color:#6E8C8C; text-transform:uppercase; margin-bottom:12px">2026 so far</div>
+        <div style="display:flex; align-items:flex-end; gap:5px; height:76px">
+          <sc-for list="{{ year }}" as="m" hint-placeholder-count="8">
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:4px">
+              <div style="width:100%; border-radius:4px 4px 0 0; background:{{ m.color }}; height:{{ m.h }}"></div>
+              <div style="font-size:.62rem; color:#6E8C8C; font-weight:700">{{ m.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:.78rem; color:#6E8C8C; margin-top:10px">Average $3,180 a month · highest July</div>
+      </div>
+    </div>
+
+    <div>
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:18px">
+        <div>
+          <div style="font-family:'Lilita One',cursive; font-size:1.8rem; color:#F4FBFB">August 2026</div>
+          <div style="font-size:.9rem; color:#A9C4C4; margin-top:3px">{{ headerNote }}</div>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center">
+          <div style="display:flex; gap:6px; background:#123636; padding:4px; border-radius:12px; border:2px solid #275C5C">
+            <button style="padding:7px 15px; border:none; border-radius:9px; font-weight:800; font-size:.85rem; cursor:pointer; background:#17C7C7; color:#0A1F1F; font-family:'Nunito Sans',sans-serif">List</button>
+            <button style="padding:7px 15px; border:none; border-radius:9px; font-weight:700; font-size:.85rem; cursor:pointer; background:transparent; color:#A9C4C4; font-family:'Nunito Sans',sans-serif">Calendar</button>
+            <button style="padding:7px 15px; border:none; border-radius:9px; font-weight:700; font-size:.85rem; cursor:pointer; background:transparent; color:#A9C4C4; font-family:'Nunito Sans',sans-serif">Year</button>
+          </div>
+          <button style="background:#123636; color:#F4FBFB; border:2px solid #275C5C; border-radius:12px; padding:9px 16px; font-weight:700; font-size:.88rem; cursor:pointer; font-family:'Nunito Sans',sans-serif; white-space:nowrap">⤓ Export CSV</button>
+          <button style="background:#FF5C3D; color:#2A0F08; border:none; border-radius:12px; padding:11px 18px; font-weight:800; font-size:.88rem; cursor:pointer; box-shadow:0 5px 0 #E6432E; font-family:'Nunito Sans',sans-serif">+ Add bill</button>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-bottom:20px">
+        <input type="text" placeholder="Search bills..." style="flex:1; padding:11px 14px; border:2px solid #275C5C; border-radius:10px; font-size:.92rem; background:#0D2828; color:#F4FBFB; font-family:'Nunito Sans',sans-serif">
+        <select style="padding:11px 14px; border:2px solid #275C5C; border-radius:10px; font-size:.92rem; background:#0D2828; color:#F4FBFB; font-family:'Nunito Sans',sans-serif; cursor:pointer">
+          <option>All bills</option>
+          <option>Unpaid</option>
+          <option>Paid</option>
+          <option>Overdue</option>
+          <option>Due soon (≤3 days)</option>
+          <option>No amount yet</option>
+        </select>
+      </div>
+
+      <sc-if value="{{ blocked }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; align-items:center; gap:14px; background:#0D2828; border:2px solid #FF3B3B; border-radius:14px; padding:14px 18px; margin-bottom:18px">
+          <span style="font-size:1.5rem">🛑</span>
+          <div style="flex:1">
+            <div style="font-family:'Lilita One',cursive; font-size:1.1rem; color:#FF3B3B">Stopped at your floor</div>
+            <div style="font-size:.88rem; color:#F4FBFB">{{ blockedLine }}</div>
+          </div>
+          <button onClick="{{ dismissBlocked }}" style="background:#F4FBFB; color:#0A1F1F; border:none; border-radius:999px; padding:9px 20px; font-weight:800; font-size:.85rem; cursor:pointer; font-family:'Nunito Sans',sans-serif; white-space:nowrap">I understand</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ hasDue }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px">
+        <div style="display:flex; align-items:center; gap:10px">
+          <span style="font-size:.78rem; font-weight:800; letter-spacing:.06em; color:#FF5C3D; text-transform:uppercase">Unpaid</span>
+          <span style="font-size:.8rem; color:#6E8C8C; font-weight:700">{{ dueTotal }} · {{ dueSoonNote }}</span>
+        </div>
+        <button onClick="{{ payAll }}" style="background:transparent; border:2px solid #275C5C; color:#A9C4C4; border-radius:999px; padding:5px 14px; font-size:.78rem; font-weight:700; cursor:pointer; font-family:'Nunito Sans',sans-serif; white-space:nowrap">{{ payAllLabel }}</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px">
+        <sc-for list="{{ dueNow }}" as="row" hint-placeholder-count="7">
+          <div style="background:#0D2828; border:2px solid {{ row.cardBorder }}; border-radius:14px; padding:14px 16px">
+            <div style="display:flex; align-items:center; gap:12px">
+              <div onClick="{{ row.toggle }}" title="Mark paid" style="width:24px; height:24px; border-radius:7px; border:2px solid {{ row.boxBorder }}; background:#123636; flex:none; cursor:pointer" style-hover="border-color:#2FE6A7; background:rgba(47,230,167,0.15)"></div>
+              <input type="text" value="{{ row.name }}" placeholder="Name this bill" style="font-weight:800; font-size:1.02rem; color:#F4FBFB; background:transparent; border:1px solid transparent; border-radius:6px; padding:4px 6px; width:190px; font-family:'Nunito Sans',sans-serif" style-hover="border-color:#275C5C" style-focus="border-color:#17C7C7; outline:none; background:#123636">
+              <span style="font-size:.7rem; font-weight:800; letter-spacing:.03em; padding:2px 9px; border-radius:999px; text-transform:uppercase; color:{{ row.catColor }}; background:{{ row.catBg }}">{{ row.category }}</span>
+              <span style="font-size:.72rem; font-weight:800; padding:3px 10px; border-radius:999px; background:{{ row.dueBg }}; color:{{ row.dueColor }}">{{ row.dueLabelText }}</span>
+              <sc-if value="{{ row.recurring }}" hint-placeholder-val="{{ true }}"><span style="font-size:.85rem" title="Repeats monthly">🔁</span></sc-if>
+              <div style="margin-left:auto; text-align:right">
+                <div style="font-family:'Lilita One',cursive; font-size:1.35rem; color:{{ row.amountColor }}">{{ row.amountLabel }}</div>
+                <div style="font-size:.75rem; color:{{ row.runColor }}; font-weight:700">{{ row.runLabel }}</div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid #1B4747">
+              <div style="flex:1; height:6px; background:#123636; border-radius:999px"></div>
+              <sc-if value="{{ row.hasAmount }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:.78rem; font-weight:700; color:#6E8C8C; white-space:nowrap">Unpaid</div>
+                <button style="background:transparent; border:2px solid #275C5C; color:#A9C4C4; border-radius:999px; padding:4px 12px; font-size:.75rem; font-weight:700; cursor:pointer; font-family:'Nunito Sans',sans-serif; white-space:nowrap">Part pay</button>
+              </sc-if>
+              <sc-if value="{{ row.needsAmount }}" hint-placeholder-val="{{ false }}">
+                <button style="background:#17C7C7; color:#0A1F1F; border:none; border-radius:999px; padding:5px 14px; font-size:.75rem; font-weight:800; cursor:pointer; font-family:'Nunito Sans',sans-serif; white-space:nowrap">Enter amount</button>
+              </sc-if>
+              <button style="background:transparent; border:2px solid #275C5C; color:#A9C4C4; border-radius:999px; padding:4px 12px; font-size:.75rem; font-weight:700; cursor:pointer; font-family:'Nunito Sans',sans-serif; white-space:nowrap">Attach receipt</button>
+              <button style="background:transparent; border:none; color:#6E8C8C; font-size:1.05rem; cursor:pointer; padding:0 4px">⋯</button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ hasPaid }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px">
+        <span style="font-size:.78rem; font-weight:800; letter-spacing:.06em; color:#2FE6A7; text-transform:uppercase">Paid</span>
+        <span style="font-size:.8rem; color:#6E8C8C; font-weight:700">{{ paidTotal }}</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:24px">
+        <sc-for list="{{ paid }}" as="row" hint-placeholder-count="2">
+          <div style="display:grid; grid-template-columns:24px 1.5fr 130px 1fr; align-items:center; gap:14px; background:#0A2222; border:2px solid #1B4747; border-radius:14px; padding:12px 16px; opacity:.82">
+            <div onClick="{{ row.toggle }}" title="Mark unpaid" style="width:22px; height:22px; border-radius:6px; background:#2FE6A7; color:#0A1F1F; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:.85rem; cursor:pointer">✓</div>
+            <div style="display:flex; align-items:center; gap:10px">
+              <input type="text" value="{{ row.name }}" style="font-weight:700; font-size:.98rem; color:#A9C4C4; background:transparent; border:1px solid transparent; border-radius:6px; padding:3px 6px; width:170px; font-family:'Nunito Sans',sans-serif" style-hover="border-color:#275C5C" style-focus="border-color:#17C7C7; outline:none; background:#123636; color:#F4FBFB">
+              <sc-if value="{{ row.recurring }}" hint-placeholder-val="{{ true }}"><span style="font-size:.8rem" title="Repeats monthly">🔁</span></sc-if>
+            </div>
+            <div style="font-family:'Lilita One',cursive; font-size:1.05rem; color:#A9C4C4; text-align:right">{{ row.amountLabel }}</div>
+            <div style="font-size:.8rem; color:#6E8C8C; text-align:right">{{ row.confLabel }}</div>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; background:#0D2828; border:2px dashed #275C5C; border-radius:14px; padding:18px">
+        <div style="font-size:.9rem; color:#A9C4C4; max-width:520px">Click any name to rename it — free text, always editable. <span style="color:#F4FBFB; font-weight:700">Start new month</span> carries the names over and clears amounts, confirmation numbers and checkmarks.</div>
+        <div style="display:flex; gap:10px">
+          <button style="background:#123636; color:#F4FBFB; border:2px solid #275C5C; border-radius:12px; padding:11px 16px; font-weight:700; font-size:.88rem; cursor:pointer; box-shadow:0 5px 0 #081716; font-family:'Nunito Sans',sans-serif; white-space:nowrap">Backup</button>
+          <button style="background:#FFB020; color:#2A0F08; border:none; border-radius:12px; padding:11px 18px; font-weight:800; font-size:.88rem; cursor:pointer; box-shadow:0 5px 0 #b96a00; font-family:'Nunito Sans',sans-serif; white-space:nowrap">↻ Start new month</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:1360px; margin:56px auto 0; border-top:2px dashed #1B4747; padding-top:32px">
+    <div style="font-family:'Lilita One',cursive; font-size:1.3rem; color:#FF3B3B">The $900 floor is a hard stop</div>
+    <div style="font-size:.92rem; color:#A9C4C4; margin-top:4px; max-width:760px">Any payment or transfer that would take checking below $900 is refused — the checkbox stays unticked and the transfer button won't fire. Two states below.</div>
+
+    <div style="display:grid; grid-template-columns:1fr 460px; gap:26px; margin-top:22px; align-items:start">
+      <div>
+        <div style="font-size:.78rem; font-weight:800; letter-spacing:.06em; color:#6E8C8C; text-transform:uppercase; margin-bottom:10px">Blocked row</div>
+        <div style="background:#0D2828; border:2px solid #FF3B3B; border-radius:14px; padding:14px 16px">
+          <div style="display:flex; align-items:center; gap:12px">
+            <div style="width:24px; height:24px; border-radius:7px; border:2px solid #FF3B3B; background:rgba(255,59,59,0.12); color:#FF3B3B; font-weight:800; font-size:.9rem; display:flex; align-items:center; justify-content:center; flex:none">✕</div>
+            <div style="font-weight:800; font-size:1.02rem; color:#F4FBFB">Credit Card G</div>
+            <span style="font-size:.7rem; font-weight:800; letter-spacing:.03em; padding:2px 9px; border-radius:999px; text-transform:uppercase; color:#2FE6A7; background:rgba(47,230,167,0.16)">Credit Card</span>
+            <span style="font-size:.72rem; font-weight:800; padding:3px 10px; border-radius:999px; background:#FF3B3B; color:#fff">Blocked by floor</span>
+            <div style="margin-left:auto; text-align:right">
+              <div style="font-family:'Lilita One',cursive; font-size:1.35rem; color:#F4FBFB">$500.00</div>
+              <div style="font-size:.75rem; color:#FF3B3B; font-weight:700">would leave you $780</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid #1B4747">
+            <div style="font-size:.8rem; color:#A9C4C4; flex:1">$120 short of the floor. Pay part of it, or wait for income to land.</div>
+            <button style="background:#17C7C7; color:#0A1F1F; border:none; border-radius:999px; padding:6px 15px; font-size:.78rem; font-weight:800; cursor:pointer; font-family:'Nunito Sans',sans-serif; white-space:nowrap">Pay $380 instead</button>
+          </div>
+        </div>
+
+        <div style="font-size:.78rem; font-weight:800; letter-spacing:.06em; color:#6E8C8C; text-transform:uppercase; margin:22px 0 10px">Transfer disabled</div>
+        <div style="background:#123636; border:2px solid #275C5C; border-radius:20px; padding:22px; max-width:340px">
+          <div style="font-size:.8rem; font-weight:800; letter-spacing:.06em; color:#6E8C8C; text-transform:uppercase">Move to savings</div>
+          <div style="font-family:'Lilita One',cursive; font-size:3.2rem; color:#6E8C8C; line-height:1.05; margin:2px 0">$0</div>
+          <div style="font-size:.88rem; font-weight:700; color:#A9C4C4; line-height:1.4">Nothing above the floor this month.</div>
+          <button style="width:100%; margin-top:16px; background:#0D2828; color:#6E8C8C; border:2px solid #275C5C; border-radius:12px; padding:13px; font-weight:800; font-size:.92rem; cursor:not-allowed; font-family:'Nunito Sans',sans-serif">Transfer unavailable</button>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:.78rem; font-weight:800; letter-spacing:.06em; color:#6E8C8C; text-transform:uppercase; margin-bottom:10px">Warning dialog</div>
+        <div style="background:#123636; border:4px solid #FF3B3B; border-radius:20px; padding:36px 40px; text-align:center; box-shadow:0 0 40px rgba(255,59,59,0.35)">
+          <div style="font-size:52px; line-height:1">🛑</div>
+          <div style="font-family:'Lilita One',cursive; font-size:1.6rem; color:#FF3B3B; margin:10px 0 8px">Stop</div>
+          <div style="color:#F4FBFB; margin-bottom:6px">Paying Credit Card G would take you under your minimum balance.</div>
+          <div style="font-family:'Lilita One',cursive; font-size:1.6rem; color:#F4FBFB; margin-bottom:4px">$780.00</div>
+          <div style="font-size:.85rem; color:#A9C4C4; margin-bottom:22px">Floor is $900. The bill was left unpaid.</div>
+          <button style="padding:12px 28px; border-radius:999px; border:none; background:#F4FBFB; color:#0A1F1F; font-weight:800; cursor:pointer; font-family:'Nunito Sans',sans-serif">I understand</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1200}}">
+const FLOOR = 900;
+const CAT = {
+  'Housing':     { color:'#17C7C7', bg:'rgba(23,199,199,0.16)' },
+  'Insurance':   { color:'#FFB020', bg:'rgba(255,176,32,0.18)' },
+  'Credit Card': { color:'#2FE6A7', bg:'rgba(47,230,167,0.16)' },
+  'Shopping':    { color:'#FF5C3D', bg:'rgba(255,92,61,0.16)' },
+  'Savings':     { color:'#FFB020', bg:'rgba(255,176,32,0.18)' }
+};
+function fmt(n){ return '$' + Number(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function short(n){ return fmt(n).replace('.00',''); }
+function cat(name){ return CAT[name] || { color:'#A9C4C4', bg:'rgba(169,196,196,0.12)' }; }
+
+const START = 5000, INCOME = 0;
+const SEED = [
+  { id:'b1', name:'Rent', amount:1500, category:'Housing', recurring:true, paid:true, conf:'884301', group:'now', dueLabel:'Due Aug 15' },
+  { id:'b2', name:'Renters Insurance', amount:45, category:'Insurance', recurring:true, paid:true, conf:'119274', group:'now', dueLabel:'Due Aug 15' },
+  { id:'b3', name:'Credit Card A', amount:650, category:'Credit Card', recurring:false, paid:false, conf:'', group:'now', dueLabel:'Due Aug 15' },
+  { id:'b4', name:'Credit Card B', amount:210, category:'Credit Card', recurring:true, paid:false, conf:'', group:'now', dueLabel:'Due Aug 15' },
+  { id:'b5', name:'Credit Card C', amount:180, category:'Credit Card', recurring:false, paid:false, conf:'', group:'now', dueLabel:'Due Aug 15' },
+  { id:'b6', name:'Credit Card E', amount:95, category:'Credit Card', recurring:false, paid:false, conf:'', group:'later', dueLabel:'Due Aug 27' },
+  { id:'b7', name:'Credit Card G', amount:500, category:'Credit Card', recurring:false, paid:false, conf:'', group:'later', dueLabel:'Due Aug 27' },
+  { id:'b8', name:'Online Shopping', amount:75, category:'Shopping', recurring:false, paid:false, conf:'', group:'later', dueLabel:'Due Aug 30' },
+  { id:'b9', name:'Savings Transfer', amount:200, category:'Savings', recurring:true, paid:false, conf:'', group:'later', dueLabel:'Due Aug 30' },
+  { id:'b10', name:'Credit Card D', amount:null, category:'Credit Card', recurring:false, paid:false, conf:'', group:'later', dueLabel:'' },
+  { id:'b11', name:'Credit Card F', amount:null, category:'Credit Card', recurring:false, paid:false, conf:'', group:'later', dueLabel:'' }
+];
+
+class Component extends DCLogic {
+  state = { bills: SEED.map(b => Object.assign({}, b)), blocked: null };
+
+  balanceOf(bills){
+    return START + INCOME - bills.filter(b => b.paid && b.amount).reduce((s,b) => s + b.amount, 0);
+  }
+
+  setPaid(id, next){
+    const bills = this.state.bills;
+    const bill = bills.find(b => b.id === id);
+    if (!bill || !bill.amount) return;
+    if (next) {
+      const after = this.balanceOf(bills) - bill.amount;
+      if (after < FLOOR) {
+        this.setState({ blocked: { name: bill.name, amount: bill.amount, after } });
+        return;
+      }
+    }
+    this.setState({
+      blocked: null,
+      bills: bills.map(b => b.id === id ? Object.assign({}, b, { paid: next, conf: next ? b.conf : '' }) : b)
+    });
+  }
+
+  payAll(ids){
+    ids.forEach(id => this.setPaid(id, true));
+  }
+
+  renderVals(){
+    const bills = this.state.bills;
+    const paidRows = bills.filter(b => b.paid);
+    const dueRows = bills.filter(b => !b.paid);
+    const laterRows = [];
+    const unsetRows = [];
+    const noAmountCount = bills.filter(b => !b.paid && !b.amount).length;
+
+    const balance = this.balanceOf(bills);
+    const owed = [...dueRows, ...laterRows].reduce((s,b) => s + b.amount, 0);
+    const projected = balance - owed;
+    const savings = Math.max(0, projected - FLOOR);
+    const paidSum = paidRows.reduce((s,b) => s + (b.amount || 0), 0);
+
+    let run = balance;
+    const decorate = r => {
+      const c = cat(r.category);
+      const hasAmount = !!r.amount;
+      if (hasAmount) run -= r.amount;
+      const blockedBy = hasAmount && balance - r.amount < FLOOR;
+      return Object.assign({}, r, {
+        catColor:c.color, catBg:c.bg,
+        hasAmount, needsAmount: !hasAmount,
+        amountLabel: hasAmount ? fmt(r.amount) : 'Not set',
+        amountColor: hasAmount ? '#F4FBFB' : '#6E8C8C',
+        runLabel: hasAmount ? 'leaves you ' + short(run) : 'not counted yet',
+        runColor: hasAmount ? (run < FLOOR ? '#FF3B3B' : '#6E8C8C') : '#FFB020',
+        boxBorder: blockedBy ? '#FF3B3B' : '#275C5C',
+        cardBorder: !hasAmount ? '#275C5C' : r.group === 'now' ? '#FF5C3D' : '#275C5C',
+        dueLabelText: hasAmount ? r.dueLabel : 'Amount needed',
+        dueBg: !hasAmount ? 'rgba(255,176,32,0.18)' : r.group === 'now' ? '#FF5C3D' : '#123636',
+        dueColor: !hasAmount ? '#FFB020' : r.group === 'now' ? '#fff' : '#A9C4C4',
+        toggle: () => this.setPaid(r.id, true)
+      });
+    };
+    const dueNow = dueRows.map(decorate);
+    const later = laterRows.map(decorate);
+    const unset = unsetRows.map(r => {
+      const c = cat(r.category);
+      return Object.assign({}, r, { catColor:c.color, catBg:c.bg });
+    });
+    const paid = paidRows.map(r => Object.assign({}, r, {
+      amountLabel: fmt(r.amount),
+      confLabel: r.conf ? 'conf ' + r.conf + ' · receipt attached' : 'add confirmation #',
+      toggle: () => this.setPaid(r.id, false)
+    }));
+    const blocked = this.state.blocked;
+
+    const CAT_ORDER = [
+      { key:'Credit Card', name:'Credit cards', color:'#2FE6A7' },
+      { key:'Housing', name:'Housing', color:'#17C7C7' },
+      { key:'Savings', name:'Savings', color:'#FFB020' },
+      { key:'Shopping', name:'Shopping', color:'#FF5C3D' },
+      { key:'Insurance', name:'Insurance', color:'#D68A00' }
+    ];
+    const slices = CAT_ORDER.map(c => ({
+      name: c.name, color: c.color,
+      amount: bills.filter(b => b.category === c.key && b.amount).reduce((s,b) => s + b.amount, 0)
+    })).filter(c => c.amount > 0);
+    const catTotal = slices.reduce((s,c) => s + c.amount, 0) || 1;
+    let acc = 0;
+    const stops = slices.map(c => {
+      const from = acc / catTotal * 100; acc += c.amount;
+      return c.color + ' ' + from.toFixed(2) + '% ' + (acc / catTotal * 100).toFixed(2) + '%';
+    }).join(', ');
+
+    return {
+      dueNow, later, unset, paid, blocked,
+      hasDue: dueRows.length > 0,
+      hasLater: laterRows.length > 0,
+      hasUnset: unsetRows.length > 0,
+      hasPaid: paidRows.length > 0,
+      dueTotal: fmt(dueRows.reduce((s,b) => s + (b.amount || 0), 0)),
+      laterTotal: fmt(laterRows.reduce((s,b) => s + b.amount, 0)),
+      paidTotal: fmt(paidSum),
+      payAllLabel: dueRows.length === 1 ? 'Pay it' : 'Pay all ' + dueRows.length,
+      dueSoonNote: dueRows.filter(b => b.group === 'now' && b.amount).length + ' due Aug 15' + (noAmountCount ? ' · ' + noAmountCount + ' awaiting an amount' : ''),
+      payAll: () => this.payAll(dueRows.filter(b => b.amount).map(b => b.id)),
+      dismissBlocked: () => this.setState({ blocked: null }),
+      blockedLine: blocked ? 'Paying ' + blocked.name + ' (' + fmt(blocked.amount) + ') would leave ' + fmt(blocked.after) + ' — under your $900 floor. Left unpaid.' : '',
+      balanceLabel: short(balance),
+      owedLabel: short(owed),
+      projectedLabel: fmt(projected),
+      savingsLabel: short(savings),
+      transferEnabled: savings > 0,
+      transferLabel: savings > 0 ? 'Transfer ' + short(savings) + ' to savings' : 'Transfer unavailable',
+      transferBg: savings > 0 ? '#062119' : 'rgba(6,33,25,0.25)',
+      transferColor: savings > 0 ? '#2FE6A7' : 'rgba(6,33,25,0.55)',
+      floorPct: Math.max(0, Math.min(100, Math.round(savings / Math.max(1, projected) * 100))) + '%',
+      floorNote: savings > 0 ? short(savings) + ' above your ' + short(FLOOR) + ' floor' : 'At your ' + short(FLOOR) + ' floor',
+      unsetNote: noAmountCount ? noAmountCount + ' bills have no amount yet — not included.' : 'Every bill has an amount.',
+      headerNote: (bills.length - unsetRows.length) + ' of ' + bills.length + ' bills have amounts · ' + paidRows.length + ' paid · next due Aug 15',
+      pieStyle: 'conic-gradient(from -90deg, ' + stops + ')',
+      catTotalLabel: short(catTotal),
+      catBudget: slices.map(c => ({
+        name:c.name, amt: short(c.amount),
+        pctLabel: Math.round(c.amount / catTotal * 100) + '%',
+        color:c.color
+      })),
+      year: [['Jan',62],['Feb',70],['Mar',58],['Apr',80],['May',66],['Jun',74],['Jul',88],['Aug',45]]
+        .map(([label,h], i) => ({ label, h: h + '%', color: i === 7 ? '#17C7C7' : '#275C5C' }))
+    };
+  }
+}
+</script>
+</body>
+</html>

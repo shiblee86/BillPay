@@ -31,7 +31,7 @@ for suite in "${SUITES[@]}"; do
 
   DOM_OUT="$(mktemp)"
   "$CHROME_BIN" --headless=new --disable-gpu --no-sandbox \
-    --virtual-time-budget=4000 --run-all-compositor-stages-before-draw \
+    --virtual-time-budget=6000 --run-all-compositor-stages-before-draw \
     --dump-dom "file://$HTML_FILE" > "$DOM_OUT" 2>/dev/null
 
   RC=0

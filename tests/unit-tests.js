@@ -98,6 +98,11 @@ test('calculateBalance with no bills equals starting + income', () => {
   assertClose(calculateBalance([], 500, 100), 600);
 });
 
+test('calculateBalance ignores paid bills with a null amount (defensive, should never occur in practice)', () => {
+  const bills = [makeBill({ amount: 100, paid: true }), makeBill({ amount: null, paid: true })];
+  assertClose(calculateBalance(bills, 1000, 0), 900);
+});
+
 test('nextRecurringDueDate rolls a before-15th date to the 15th of next month', () => {
   assertEqual(nextRecurringDueDate('2026-03-10'), '2026-04-15');
 });
@@ -134,7 +139,7 @@ test('MIN_BALANCE is 900', () => {
 });
 
 test('DARK and LIGHT theme tokens define every required key', () => {
-  const requiredKeys = ['bg','surface1','surface2','surfaceRaised','borderSubtle','borderStrong','textPrimary','textSecondary','textMuted','primary','accent','amber','success','error','textOnPrimary','textOnAccent','shadowPrimary','shadowAccent','shadowNeutral','shadowAmber'];
+  const requiredKeys = ['bg','surface1','surface2','surfaceRaised','borderSubtle','borderStrong','textPrimary','textSecondary','textMuted','primary','accent','amber','success','error','textOnPrimary','textOnAccent','shadowPrimary','shadowAccent','shadowNeutral','shadowAmber','shadowSuccess','ink','paidSurface'];
   requiredKeys.forEach(k => {
     assertTrue(typeof DARK[k] === 'string' && /^#[0-9A-Fa-f]{6}$/.test(DARK[k]), 'DARK.' + k + ' should be a hex color');
     assertTrue(typeof LIGHT[k] === 'string' && /^#[0-9A-Fa-f]{6}$/.test(LIGHT[k]), 'LIGHT.' + k + ' should be a hex color');
@@ -146,4 +151,57 @@ test('CAT_PALETTE has exactly 4 entries referencing valid theme color keys', () 
   CAT_PALETTE.forEach(p => {
     assertTrue(p.colorKey in DARK, 'colorKey ' + p.colorKey + ' should exist on theme objects');
   });
+});
+
+test('short() strips a trailing .00 but leaves real cents alone', () => {
+  assertEqual(short(645), '$645');
+  assertEqual(short(644.5), '$644.50');
+  assertEqual(short(0), '$0');
+});
+
+test('shortDateLabel formats YYYY-MM-DD as "Mon D"', () => {
+  assertEqual(shortDateLabel('2026-08-15'), 'Aug 15');
+  assertEqual(shortDateLabel(''), '');
+  assertEqual(shortDateLabel(null), '');
+});
+
+test('parseAmountOrNull treats a blank/whitespace field as null, not zero', () => {
+  assertEqual(parseAmountOrNull(''), null);
+  assertEqual(parseAmountOrNull('   '), null);
+  assertEqual(parseAmountOrNull('0'), 0);
+  assertEqual(parseAmountOrNull('100+50'), 150);
+});
+
+test('normalizeAmount preserves real numbers (including 0) and nulls out anything else', () => {
+  assertEqual(normalizeAmount(120), 120);
+  assertEqual(normalizeAmount(0), 0);
+  assertEqual(normalizeAmount(null), null);
+  assertEqual(normalizeAmount(undefined), null);
+  assertEqual(normalizeAmount(''), null);
+  assertEqual(normalizeAmount('not a number'), null);
+  assertEqual(normalizeAmount('42.5'), 42.5);
+});
+
+test('categoryStyle uses the fixed semantic map for known categories', () => {
+  const cs = categoryStyle('Housing', DARK);
+  assertEqual(cs.color, DARK.primary);
+  assertEqual(cs.bg, 'rgba(23,199,199,0.16)');
+  const ins = categoryStyle('Insurance', DARK);
+  assertEqual(ins.color, DARK.amber);
+});
+
+test('categoryStyle falls back to the cycling CAT_PALETTE for categories outside the fixed map', () => {
+  const cs = categoryStyle('Utilities', DARK);
+  assertTrue(!('Utilities' in CAT_COLORS), 'Utilities should not be in the fixed map (this test would be meaningless otherwise)');
+  const idx = CATEGORIES.indexOf('Utilities');
+  const expected = CAT_PALETTE[idx % CAT_PALETTE.length];
+  assertEqual(cs.color, DARK[expected.colorKey]);
+});
+
+test('PIE_CAT_ORDER has exactly the 5 categories named in the handoff, in order', () => {
+  assertEqual(PIE_CAT_ORDER.map(c => c.key).join(','), 'Credit Card,Housing,Savings,Shopping,Insurance');
+});
+
+test('PIE_INSURANCE_COLOR is the fixed deep-amber literal from the handoff, not theme-swapped', () => {
+  assertEqual(PIE_INSURANCE_COLOR, '#D68A00');
 });

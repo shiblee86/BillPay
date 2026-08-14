@@ -11,68 +11,90 @@
 </head>
 <body>
 <div class="page">
-  <div class="wrap">
-    <div class="header-row">
-      <div>
-        <div class="title">Bill Payment Tracker</div>
-        <div class="subtitle" id="dueDateDescription"></div>
+  <div class="cockpit">
+
+    <div class="rail">
+      <div class="rail-head">
+        <div class="title">Bill Payment<br>Tracker</div>
+        <button class="icon-btn" id="themeToggleBtn" title="Toggle theme">&#9728;&#65039;</button>
       </div>
-      <button class="icon-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle theme">&#9728;&#65039;</button>
-    </div>
 
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-label">Monthly bills</div><div class="stat-value" id="statTotalBills">$0</div></div>
-      <div class="stat-card"><div class="stat-label">Paid this month</div><div class="stat-value" id="statPaid" style="color:var(--success)">$0</div></div>
-      <div class="stat-card"><div class="stat-label">Remaining</div><div class="stat-value" id="statRemaining" style="color:var(--accent)">$0</div></div>
-      <div class="stat-card"><div class="stat-label">Progress</div><div class="stat-value" id="statProgress">0%</div></div>
-    </div>
-
-    <div class="inputs-grid">
-      <div class="input-card balance">
-        <label>Starting balance</label>
-        <input type="number" step="0.01" id="startingBalance">
+      <div class="rail-card accounts-card">
+        <div class="rail-card-label">Accounts</div>
+        <div class="accounts-list">
+          <div class="account-row active"><span>Checking</span><span>$3,455</span></div>
+          <div class="account-row"><span>Savings</span><span>$8,200</span></div>
+          <div class="account-row"><span>Joint</span><span>$640</span></div>
+        </div>
       </div>
-      <div class="input-card income">
-        <label>Expected income (payroll, etc.)</label>
-        <input type="number" step="0.01" id="expectedIncome">
+
+      <div class="rail-card balance-inputs-card">
+        <div class="rail-card-label">Checking balance</div>
+        <label class="balance-input-label" for="startingBalance">Starting balance</label>
+        <input type="number" step="0.01" id="startingBalance" class="balance-input">
+        <label class="balance-input-label" for="expectedIncome">Expected income</label>
+        <input type="number" step="0.01" id="expectedIncome" class="balance-input">
+      </div>
+
+      <div class="savings-card">
+        <div class="savings-card-label">Move to savings</div>
+        <div class="savings-figure" id="savingsFigure">$0</div>
+        <div class="savings-sub">Live figure — no need to finish paying first.</div>
+        <div class="savings-breakdown">
+          <div class="savings-breakdown-row"><span>Balance now</span><span id="savingsBalanceNow">$0</span></div>
+          <div class="savings-breakdown-row"><span>Bills still owed</span><span id="savingsOwed">− $0</span></div>
+          <div class="savings-breakdown-row"><span>Minimum floor</span><span id="savingsFloorLine">− $900</span></div>
+          <div class="savings-breakdown-row savings-breakdown-final"><span>Free to move</span><span id="savingsFreeToMove">$0</span></div>
+        </div>
+        <button class="transfer-btn" id="transferBtn" type="button">Transfer unavailable</button>
+        <div class="savings-footnote" id="savingsFootnote"></div>
+      </div>
+
+      <div class="rail-card projected-card">
+        <div class="rail-card-label">After every bill</div>
+        <div class="projected-figure" id="projectedFigure">$0.00</div>
+        <div class="projected-meter"><div class="projected-meter-fill" id="projectedMeterFill" style="width:0%"></div></div>
+        <div class="projected-note" id="projectedNote"></div>
+      </div>
+
+      <div class="rail-card pie-card">
+        <div class="rail-card-label">Where the month goes</div>
+        <div class="donut-wrap">
+          <div class="donut" id="donutGradient">
+            <div class="donut-hole">
+              <div class="donut-total" id="donutTotal">$0</div>
+              <div class="donut-total-label">this month</div>
+            </div>
+          </div>
+        </div>
+        <div class="donut-legend" id="donutLegend"></div>
+      </div>
+
+      <div class="rail-card year-card">
+        <div class="rail-card-label" id="yearStripLabel">This year</div>
+        <div class="year-strip" id="yearStripBars"></div>
+        <div class="year-caption" id="yearStripCaption"></div>
       </div>
     </div>
 
-    <div class="balance-banner" id="balanceBanner">
-      <div class="b-label">Current balance</div>
-      <div class="b-amount" id="balanceAmount">$0.00</div>
-      <div class="b-status" id="balanceStatus"></div>
-    </div>
-
-    <div class="progress-card">
-      <div class="progress-head"><span>Payment progress</span><span id="progressPercentLabel">0%</span></div>
-      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
-      <div class="progress-sub"><span>Bills paid</span><span id="progressCountLabel">0 / 0</span></div>
-    </div>
-
-    <div class="savings-banner" id="savingsBanner">
-      <div class="s-label">Available to transfer to savings</div>
-      <div class="s-amount" id="savingsAmount">$0.00</div>
-      <div id="savingsNote"></div>
-    </div>
-
-    <div class="insights-row">
-      <div class="insight-card">
-        <div class="insight-title">Spending by card</div>
-        <div id="spendingByCard"></div>
+    <div class="main-col">
+      <div class="main-header">
+        <div>
+          <div class="month-label" id="monthLabel"></div>
+          <div class="header-note" id="headerNote"></div>
+        </div>
+        <div class="header-actions">
+          <div class="segmented">
+            <button id="viewListBtn" type="button">List</button>
+            <button id="viewCalBtn" type="button">Calendar</button>
+            <button id="viewYearBtn" type="button">Year</button>
+          </div>
+          <button class="btn-ghost-cockpit" id="exportCsvBtn" type="button">&#10515; Export CSV</button>
+          <button class="btn-add-bill" id="addBillBtn" type="button">+ Add bill</button>
+        </div>
       </div>
-      <div class="insight-card">
-        <div class="insight-title">Monthly trend</div>
-        <div id="monthlyTrend"></div>
-      </div>
-    </div>
 
-    <div class="toolbar">
-      <div class="segmented">
-        <button id="viewListBtn" onclick="setView('list')">List</button>
-        <button id="viewCalBtn" onclick="setView('calendar')">Calendar</button>
-      </div>
-      <div class="filters">
+      <div class="filters-row">
         <input type="text" id="searchBills" placeholder="Search bills...">
         <select id="filterStatus">
           <option value="all">All bills</option>
@@ -80,48 +102,75 @@
           <option value="paid">Paid</option>
           <option value="overdue">Overdue</option>
           <option value="due-soon">Due soon (&le;3 days)</option>
+          <option value="no-amount">No amount yet</option>
         </select>
+      </div>
+
+      <div class="blocked-notice" id="blockedNotice" style="display:none">
+        <span class="blocked-icon">&#128721;</span>
+        <div class="blocked-body">
+          <div class="blocked-title">Stopped at your floor</div>
+          <div class="blocked-line" id="blockedLine"></div>
+        </div>
+        <button class="blocked-dismiss" id="dismissBlockedBtn" type="button">I understand</button>
+      </div>
+
+      <div id="unpaidSection" style="display:none">
+        <div class="group-head">
+          <div class="group-head-left">
+            <span class="group-title unpaid">Unpaid</span>
+            <span class="group-meta" id="unpaidMeta"></span>
+          </div>
+          <button class="pay-all-btn" id="payAllBtn" type="button"></button>
+        </div>
+        <div class="unpaid-list" id="unpaidListView"></div>
+      </div>
+
+      <div id="paidSection" style="display:none">
+        <div class="group-head">
+          <div class="group-head-left">
+            <span class="group-title paid">Paid</span>
+            <span class="group-meta" id="paidMeta"></span>
+          </div>
+        </div>
+        <div class="paid-list" id="paidListView"></div>
+      </div>
+
+      <div class="no-results" id="noResultsNote" style="display:none">No bills match your search.</div>
+
+      <div class="calendar-card" id="calendarView" style="display:none"></div>
+
+      <div class="footer-strip">
+        <div class="footer-copy">Click any name to rename it — free text, always editable. <strong>Start new month</strong> carries the names over and clears amounts, confirmation numbers and checkmarks.</div>
+        <div class="footer-actions">
+          <button class="btn-ghost-cockpit" id="importBackupBtn" type="button">Import backup</button>
+          <button class="btn-ghost-cockpit" id="downloadBackupBtn" type="button">Backup</button>
+          <button class="btn-start-month" id="startNewMonthBtn" type="button">&#8635; Start new month</button>
+        </div>
       </div>
     </div>
 
-    <div class="bills-list" id="billsListView"></div>
-    <div class="calendar-card" id="calendarView" style="display:none"></div>
-
-    <div class="summary-card">
-      <div class="summary-row"><span>Total bills</span><span id="sumTotalBills">$0.00</span></div>
-      <div class="summary-row"><span>Paid so far</span><span id="sumTotalPaid" style="color:var(--success)">$0.00</span></div>
-      <div class="summary-row"><span>Unpaid bills</span><span id="sumUnpaidBills" style="color:var(--accent)">$0.00</span></div>
-      <div class="summary-row"><span>Expected income</span><span id="sumIncome" style="color:var(--success)">$0.00</span></div>
-      <div class="summary-row final"><span>Final balance</span><span id="sumFinal">$0.00</span></div>
-    </div>
-
-    <div class="actions-grid">
-      <button class="btn btn-accent" onclick="openAddModal()">+ Add bill</button>
-      <button class="btn btn-reward" onclick="startNewMonthConfirm()">&#8635; Start new month</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('fileInput').click()">Import backup</button>
-      <button class="btn btn-ghost" onclick="exportCSV()">Export CSV</button>
-      <button class="btn btn-primary" onclick="downloadBackup()">Download backup</button>
-    </div>
-    <input type="file" id="fileInput" accept=".json" style="display:none" onchange="handleImportFile(event)">
   </div>
 </div>
+<input type="file" id="fileInput" accept=".json" style="display:none">
 
 <div class="modal-overlay" id="addModalOverlay">
   <div class="modal-card add">
-    <div class="modal-title">Add a bill</div>
+    <div class="modal-title" id="addModalTitle">Add a bill</div>
     <label class="field-label2">Name</label>
     <input type="text" id="addName">
     <label class="field-label2">Amount</label>
-    <input type="text" id="addAmount" placeholder="e.g. 120 or 100+20">
+    <input type="text" id="addAmount" placeholder="e.g. 120 or 100+20 — leave blank for no amount yet">
     <label class="field-label2">Category</label>
     <select id="addCategory"></select>
     <label class="field-label2">Due date</label>
     <input type="date" id="addDueDate">
     <label class="modal-checkbox-row"><input type="checkbox" id="addRecurring" style="width:18px;height:18px;margin:0;"> Repeats monthly</label>
     <div class="modal-btn-row">
-      <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
-      <button class="btn-add-submit" onclick="submitAddBill()">Add bill</button>
+      <button class="btn-cancel" id="addModalCancelBtn" type="button">Cancel</button>
+      <button class="btn-add-submit" id="addModalSubmitBtn" type="button">Add bill</button>
     </div>
+    <button class="modal-delete-btn" id="addModalDeleteBtn" type="button" style="display:none">Delete this bill</button>
   </div>
 </div>
 
@@ -130,19 +179,9 @@
     <div class="modal-title" id="confirmTitle"></div>
     <div style="color:var(--text-secondary); margin-bottom:22px;" id="confirmMessage"></div>
     <div class="modal-btn-row">
-      <button class="btn-cancel" onclick="closeConfirmModal()">Cancel</button>
-      <button class="btn-confirm-danger" id="confirmActionBtn">Confirm</button>
+      <button class="btn-cancel" id="confirmCancelBtn" type="button">Cancel</button>
+      <button class="btn-confirm-danger" id="confirmActionBtn" type="button">Confirm</button>
     </div>
-  </div>
-</div>
-
-<div class="stop-overlay" id="stopModalOverlay">
-  <div class="stop-card">
-    <div class="stop-icon">&#128721;</div>
-    <div class="stop-title">Stop</div>
-    <div class="stop-msg">You've reached your minimum balance.</div>
-    <div class="stop-balance" id="stopBalance"></div>
-    <button class="stop-btn" onclick="closeStopModal()">I understand</button>
   </div>
 </div>
 

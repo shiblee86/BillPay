@@ -30,12 +30,33 @@ function fmtCurrency(n){
   const abs = Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return (neg ? '-' : '') + '$' + abs;
 }
+// Whole-dollar shorthand used throughout the rail cards: "$645.00" -> "$645", but
+// "$644.50" is left alone. Mirrors the design reference's own `short()` helper exactly.
+function short(n){ return fmtCurrency(n).replace('.00',''); }
+function shortDateLabel(dateStr){
+  if (!dateStr) return '';
+  return parseLocalDate(dateStr).toLocaleString('en-US', { month:'short', day:'numeric' });
+}
 function parseAmountExpr(raw){
   const sanitized = String(raw).replace(/[^0-9+\-*/.() ]/g, '');
   if (/[+\-*/]/.test(sanitized)) {
     try { return Function('"use strict";return (' + sanitized + ')')(); } catch (e) { return parseFloat(raw) || 0; }
   }
   return parseFloat(raw) || 0;
+}
+// Same expression parsing, but a blank field means "no amount yet" (null), not zero.
+function parseAmountOrNull(raw){
+  const trimmed = String(raw == null ? '' : raw).trim();
+  if (trimmed === '') return null;
+  return parseAmountExpr(raw);
+}
+// Used when loading bills from any source (current save, legacy save, imported backup):
+// keep real stored numbers as-is, but treat missing/blank/non-numeric as null rather
+// than silently coercing to 0.
+function normalizeAmount(v){
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 function uid(){ return 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function escapeHtml(text){ const d = document.createElement('div'); d.textContent = text == null ? '' : text; return d.innerHTML; }
@@ -52,7 +73,8 @@ const DARK = {
   textPrimary:'#F4FBFB', textSecondary:'#A9C4C4', textMuted:'#6E8C8C',
   primary:'#17C7C7', accent:'#FF5C3D', amber:'#FFB020', success:'#2FE6A7', error:'#FF3B3B',
   textOnPrimary:'#0A1F1F', textOnAccent:'#2A0F08',
-  shadowPrimary:'#0EA3A3', shadowAccent:'#E6432E', shadowNeutral:'#081716'
+  shadowPrimary:'#0EA3A3', shadowAccent:'#E6432E', shadowNeutral:'#081716',
+  shadowSuccess:'#17A97A', ink:'#062119', paidSurface:'#0A2222'
 };
 DARK.shadowAmber = shade(DARK.amber, -70);
 
@@ -62,8 +84,10 @@ const LIGHT = {
   textPrimary:'#0A1F1F', textSecondary:'#3B5C5C', textMuted:'#6E8C8C',
   primary:'#0EA3A3', accent:'#E6432E', amber:'#D68A00', success:'#1FAE7E', error:'#D62A2A',
   textOnPrimary:'#F4FBFB', textOnAccent:'#FFFFFF',
-  shadowPrimary:'#0B8484', shadowAccent:'#C23522', shadowNeutral:'#B8D8D8'
+  shadowPrimary:'#0B8484', shadowAccent:'#C23522', shadowNeutral:'#B8D8D8',
+  shadowSuccess:'#17A97A', ink:'#062119'
 };
+LIGHT.paidSurface = LIGHT.surface2;
 LIGHT.shadowAmber = shade(LIGHT.amber, -60);
 
 const CAT_PALETTE = [
@@ -72,8 +96,36 @@ const CAT_PALETTE = [
   { bgD:'rgba(255,176,32,0.18)', bgL:'rgba(214,138,0,0.14)', colorKey:'amber' },
   { bgD:'rgba(47,230,167,0.16)', bgL:'rgba(31,174,126,0.12)', colorKey:'success' },
 ];
+// Fixed semantic category colors from the Cockpit handoff (badges/pills). Categories not
+// listed here (Utilities, Subscription, Other) fall back to the cycling CAT_PALETTE above.
+const CAT_COLORS = {
+  'Housing':     { colorKey:'primary', bg:'rgba(23,199,199,0.16)' },
+  'Insurance':   { colorKey:'amber',   bg:'rgba(255,176,32,0.18)' },
+  'Savings':     { colorKey:'amber',   bg:'rgba(255,176,32,0.18)' },
+  'Credit Card': { colorKey:'success', bg:'rgba(47,230,167,0.16)' },
+  'Shopping':    { colorKey:'accent',  bg:'rgba(255,92,61,0.16)' }
+};
+function categoryStyle(category, t){
+  const c = CAT_COLORS[category];
+  if (c) return { color: t[c.colorKey], bg: c.bg };
+  const idx = Math.max(0, CATEGORIES.indexOf(category));
+  const p = CAT_PALETTE[idx % CAT_PALETTE.length];
+  return { color: t[p.colorKey], bg: state.isLight ? p.bgL : p.bgD };
+}
+// "Deep amber", pie-only per the handoff — deliberately not theme-swapped (the README
+// gives one literal hex with no light-theme variant), used only to keep the Insurance
+// slice visually distinct from the Savings slice, which shares the regular amber token.
+const PIE_INSURANCE_COLOR = '#D68A00';
+const PIE_CAT_ORDER = [
+  { key:'Credit Card', name:'Credit cards', colorKey:'success' },
+  { key:'Housing', name:'Housing', colorKey:'primary' },
+  { key:'Savings', name:'Savings', colorKey:'amber' },
+  { key:'Shopping', name:'Shopping', colorKey:'accent' },
+  { key:'Insurance', name:'Insurance', colorHex: PIE_INSURANCE_COLOR }
+];
 
-let state = { bills:[], isLight:false, view:'list', calOffset:0, history:[], toasts:[] };
+let state = { bills:[], isLight:false, view:'list', calOffset:0, history:[], toasts:[], blocked:null };
+let editingBillId = null;
 
 function el(id){ return document.getElementById(id); }
 function theme(){ return state.isLight ? LIGHT : DARK; }
@@ -102,6 +154,9 @@ function applyTheme(){
   root.setProperty('--shadow-accent', t.shadowAccent);
   root.setProperty('--shadow-neutral', t.shadowNeutral);
   root.setProperty('--shadow-amber', t.shadowAmber);
+  root.setProperty('--shadow-success', t.shadowSuccess);
+  root.setProperty('--ink', t.ink);
+  root.setProperty('--paid-surface', t.paidSurface);
   el('themeToggleBtn').textContent = state.isLight ? '\u{1F319}' : '☀️';
   el('themeToggleBtn').title = state.isLight ? 'Switch to dark' : 'Switch to light';
 }
@@ -132,10 +187,26 @@ function addToast(msg){
 function renderToasts(){
   el('toastStack').innerHTML = state.toasts.map(t => `<div class="toast">${escapeHtml(t.msg)}</div>`).join('');
 }
+function notAvailableYet(feature){ addToast(feature + " isn't available yet"); }
 
+// Only paid bills with a real amount count against the balance; null-amount bills are
+// never payable in the first place, but this stays defensive against odd imported data.
 function calculateBalance(bills, starting, income){
-  const paid = bills.filter(b => b.paid).reduce((s,b) => s + b.amount, 0);
+  const paid = bills.filter(b => b.paid && b.amount != null).reduce((s,b) => s + b.amount, 0);
   return starting + income - paid;
+}
+
+// Single source of truth for the headline figures, used by render() and by anything
+// (like the transfer button's click handler) that needs a fresh read outside of render.
+function computeFigures(){
+  const bills = state.bills;
+  const starting = parseFloat(el('startingBalance').value) || 0;
+  const income = parseFloat(el('expectedIncome').value) || 0;
+  const balance = calculateBalance(bills, starting, income);
+  const owed = bills.filter(b => !b.paid && b.amount != null).reduce((s,b) => s + b.amount, 0);
+  const projected = balance - owed;
+  const savings = Math.max(0, projected - MIN_BALANCE);
+  return { bills, starting, income, balance, owed, projected, savings };
 }
 
 function updateBillField(id, field, value){
@@ -146,35 +217,54 @@ function updateBillField(id, field, value){
 }
 function updateBillAmount(id, raw){
   const b = findBill(id); if (!b) return;
-  b.amount = parseAmountExpr(raw);
+  b.amount = parseAmountOrNull(raw);
   persistData();
   render();
 }
-function toggleRecurring(id){
-  const b = findBill(id); if (!b) return;
-  b.recurring = !b.recurring;
-  persistData();
-  render();
+
+// Attempts to mark one bill paid against the *current* balance. Returns true on success.
+// On failure it refuses the change and records state.blocked for the inline notice —
+// it does not render or persist itself, so callers (single tick, Pay all) can batch.
+function attemptPay(id){
+  const b = findBill(id);
+  if (!b || b.paid || b.amount == null) return true;
+  const { balance } = computeFigures();
+  const after = balance - b.amount;
+  if (after < MIN_BALANCE) {
+    state.blocked = { name: b.name, amount: b.amount, after };
+    return false;
+  }
+  b.paid = true;
+  state.blocked = null;
+  return true;
 }
+
 function toggleBillPaid(id){
   const b = findBill(id); if (!b) return;
-  const willBePaid = !b.paid;
-  if (willBePaid) {
-    const starting = parseFloat(el('startingBalance').value) || 0;
-    const income = parseFloat(el('expectedIncome').value) || 0;
-    const futureBalance = calculateBalance(state.bills, starting, income) - b.amount;
-    if (futureBalance < MIN_BALANCE) {
-      el('stopBalance').textContent = fmtCurrency(futureBalance);
-      el('stopModalOverlay').classList.add('show');
-      render();
-      return;
-    }
+  if (b.paid) {
+    b.paid = false;
+    b.confirmationNumber = '';
+    persistData();
+    render();
+    return;
   }
-  b.paid = willBePaid;
+  if (b.amount == null) return;
+  const ok = attemptPay(id);
   persistData();
   render();
-  if (willBePaid) addToast(`Paid ${b.name} for ${fmtCurrency(b.amount)}`);
+  if (ok) addToast(`Paid ${b.name} for ${fmtCurrency(b.amount)}`);
 }
+
+function payAllUnpaid(){
+  const ids = state.bills.filter(b => !b.paid && b.amount != null).map(b => b.id);
+  for (const id of ids) {
+    if (!attemptPay(id)) break;
+  }
+  persistData();
+  render();
+}
+
+function dismissBlocked(){ state.blocked = null; render(); }
 
 function showConfirmModal(title, message, action){
   el('confirmTitle').textContent = title;
@@ -195,8 +285,6 @@ function deleteBillConfirm(id){
   });
 }
 
-function closeStopModal(){ el('stopModalOverlay').classList.remove('show'); }
-
 function nextRecurringDueDate(oldStr){
   const old = oldStr ? parseLocalDate(oldStr) : new Date();
   const before15 = old.getDate() <= 15;
@@ -206,13 +294,20 @@ function nextRecurringDueDate(oldStr){
 }
 
 function startNewMonthConfirm(){
-  showConfirmModal('Start new month', "This archives this month's totals, rolls recurring bills to their next due date, and clears paid one-time bills.", () => {
+  showConfirmModal('Start new month', "This archives this month's totals, rolls recurring bills to their next due date, and clears amounts, confirmation numbers and paid checkmarks for every bill.", () => {
     const bills = state.bills;
-    const totalBills = bills.reduce((s,b)=>s+b.amount,0);
-    const totalPaid = bills.filter(b=>b.paid).reduce((s,b)=>s+b.amount,0);
+    const totalBills = bills.reduce((s,b) => s + (b.amount || 0), 0);
+    const totalPaid = bills.filter(b => b.paid).reduce((s,b) => s + (b.amount || 0), 0);
     const label = new Date().toLocaleString('en-US', { month:'short', year:'2-digit' });
     state.history = [...state.history, { label, totalBills, totalPaid }].slice(-12);
-    state.bills = bills.filter(b => b.recurring || !b.paid).map(b => b.recurring ? { ...b, paid:false, confirmationNumber:'', dueDate: nextRecurringDueDate(b.dueDate) } : b);
+    state.bills = bills.map(b => ({
+      ...b,
+      paid: false,
+      confirmationNumber: '',
+      amount: null,
+      dueDate: b.recurring ? nextRecurringDueDate(b.dueDate) : b.dueDate
+    }));
+    state.blocked = null;
     persistData();
     persistHistory();
     render();
@@ -221,6 +316,10 @@ function startNewMonthConfirm(){
 }
 
 function openAddModal(){
+  editingBillId = null;
+  el('addModalTitle').textContent = 'Add a bill';
+  el('addModalSubmitBtn').textContent = 'Add bill';
+  el('addModalDeleteBtn').style.display = 'none';
   el('addName').value = '';
   el('addAmount').value = '';
   el('addCategory').value = 'Other';
@@ -228,19 +327,47 @@ function openAddModal(){
   el('addRecurring').checked = false;
   el('addModalOverlay').classList.add('show');
 }
-function closeAddModal(){ el('addModalOverlay').classList.remove('show'); }
-function submitAddBill(){
+function openEditModal(id){
+  const b = findBill(id); if (!b) return;
+  editingBillId = id;
+  el('addModalTitle').textContent = 'Edit bill';
+  el('addModalSubmitBtn').textContent = 'Save changes';
+  el('addModalDeleteBtn').style.display = '';
+  el('addName').value = b.name;
+  el('addAmount').value = b.amount == null ? '' : String(b.amount);
+  el('addCategory').value = b.category;
+  el('addDueDate').value = b.dueDate || '';
+  el('addRecurring').checked = !!b.recurring;
+  el('addModalOverlay').classList.add('show');
+}
+function closeAddModal(){ el('addModalOverlay').classList.remove('show'); editingBillId = null; }
+function submitBillModal(){
   const name = el('addName').value.trim();
   if (!name) return;
-  const amount = parseAmountExpr(el('addAmount').value);
+  const amount = parseAmountOrNull(el('addAmount').value);
   const category = el('addCategory').value;
   const dueDate = el('addDueDate').value || fmtDateInput(getSmartDueDate());
   const recurring = el('addRecurring').checked;
-  state.bills.push({ id: uid(), name, amount, paid:false, confirmationNumber:'', dueDate, category, recurring });
-  persistData();
+  if (editingBillId) {
+    const b = findBill(editingBillId);
+    if (b) Object.assign(b, { name, amount, category, dueDate, recurring });
+    persistData();
+    closeAddModal();
+    render();
+    addToast(`Updated "${name}"`);
+  } else {
+    state.bills.push({ id: uid(), name, amount, paid:false, confirmationNumber:'', dueDate, category, recurring });
+    persistData();
+    closeAddModal();
+    render();
+    addToast(amount == null ? `Added "${name}"` : `Added "${name}" for ${fmtCurrency(amount)}`);
+  }
+}
+function deleteFromEditModal(){
+  if (!editingBillId) return;
+  const id = editingBillId;
   closeAddModal();
-  render();
-  addToast(`Added "${name}" for ${fmtCurrency(amount)}`);
+  deleteBillConfirm(id);
 }
 
 function downloadBlob(content, type, filename){
@@ -253,7 +380,16 @@ function downloadBlob(content, type, filename){
 function exportCSV(){
   const headers = ['Bill Name','Amount','Paid','Confirmation Number','Due Date','Category','Recurring','Status'];
   const todayStr = fmtDateInput(new Date());
-  const rows = state.bills.map(b => [b.name, b.amount, b.paid?'Yes':'No', b.confirmationNumber||'', b.dueDate||'', b.category, b.recurring?'Yes':'No', b.paid?'Paid':(b.dueDate && b.dueDate < todayStr ? 'Overdue':'Pending')]);
+  const rows = state.bills.map(b => [
+    b.name,
+    b.amount == null ? '' : b.amount,
+    b.paid ? 'Yes' : 'No',
+    b.confirmationNumber || '',
+    b.dueDate || '',
+    b.category,
+    b.recurring ? 'Yes' : 'No',
+    b.paid ? 'Paid' : (b.amount == null ? 'No amount' : (b.dueDate && b.dueDate < todayStr ? 'Overdue' : 'Pending'))
+  ]);
   const csv = [headers, ...rows].map(r => r.map(v => typeof v === 'string' && v.includes(',') ? `"${v}"` : v).join(',')).join('\n');
   downloadBlob(csv, 'text/csv', `bill_tracker_export_${todayStr}.csv`);
   addToast('CSV exported');
@@ -271,10 +407,11 @@ function handleImportFile(e){
     try {
       const data = JSON.parse(ev.target.result);
       if (!data.bills || !Array.isArray(data.bills)) { addToast('Invalid backup file'); return; }
-      state.bills = data.bills.map(b => ({ recurring:false, category:'Other', confirmationNumber:'', ...b, id: b.id || uid() }));
+      state.bills = data.bills.map(b => ({ recurring:false, category:'Other', confirmationNumber:'', ...b, id: b.id || uid(), amount: normalizeAmount(b.amount) }));
       if (data.startingBalance != null) el('startingBalance').value = data.startingBalance;
       if (data.expectedIncome != null) el('expectedIncome').value = data.expectedIncome;
       state.history = data.history || state.history;
+      state.blocked = null;
       persistData();
       persistHistory();
       render();
@@ -287,66 +424,102 @@ function handleImportFile(e){
 
 function calNav(delta){ state.calOffset += delta; render(); }
 
-function buildBillCard(b, t, rb, todayStr){
-  const rbKey = rb < MIN_BALANCE ? 'danger' : rb < MIN_BALANCE+200 ? 'warning' : 'safe';
-  const rbColor = { safe:t.success, warning:t.amber, danger:t.error }[rbKey];
-  let dueText, dueTextColor = '#fff', dueBg = t.primary;
-  if (b.paid) { dueText='Paid'; dueBg=t.success; }
-  else if (!b.dueDate) { dueText='No date'; dueBg=t.textMuted; }
-  else {
-    const days = Math.ceil((new Date(b.dueDate) - new Date(todayStr)) / 86400000);
-    if (days < 0) { dueText = `Overdue ${Math.abs(days)}d`; dueBg = t.error; }
-    else if (days === 0) { dueText = 'Due today'; dueBg = t.error; }
-    else if (days <= 3) { dueText = `Due in ${days}d`; dueBg = t.accent; }
-    else if (days <= 7) { dueText = `Due in ${days}d`; dueBg = t.amber; dueTextColor = t.textOnAccent; }
-    else { dueText = `Due in ${days}d`; dueBg = t.surface2; dueTextColor = t.textSecondary; }
-  }
-  const catIdx = CATEGORIES.indexOf(b.category) >= 0 ? CATEGORIES.indexOf(b.category) : 0;
-  const catStyle = CAT_PALETTE[catIdx % CAT_PALETTE.length];
-  const catBg = state.isLight ? catStyle.bgL : catStyle.bgD;
-  const catColor = t[catStyle.colorKey];
-  const cardBg = b.paid ? t.surface2 : t.surface1;
-  const borderColor = b.paid ? t.borderSubtle : t.borderStrong;
-  const opacity = b.paid ? 0.75 : 1;
-  const catOptions = CATEGORIES.map(c => `<option value="${c}" ${c===b.category?'selected':''}>${c}</option>`).join('');
+function buildUnpaidRow(b, t, runAfter, todayStr, smartStr, balanceNow){
+  const cs = categoryStyle(b.category, t);
+  const hasAmount = b.amount != null;
+  const wouldBreach = hasAmount && (balanceNow - b.amount < MIN_BALANCE);
+  const dueThisCycle = hasAmount && b.dueDate === smartStr;
+  let dueLabelText, dueBg, dueColor;
+  if (!hasAmount) { dueLabelText = 'Amount needed'; dueBg = 'rgba(255,176,32,0.18)'; dueColor = t.amber; }
+  else if (!b.dueDate) { dueLabelText = 'No date'; dueBg = t.surface2; dueColor = t.textSecondary; }
+  else if (dueThisCycle) { dueLabelText = 'Due ' + shortDateLabel(b.dueDate); dueBg = t.accent; dueColor = '#fff'; }
+  else { dueLabelText = 'Due ' + shortDateLabel(b.dueDate); dueBg = t.surface2; dueColor = t.textSecondary; }
+  const cardBorder = dueThisCycle ? t.accent : t.borderStrong;
+  const boxBorder = wouldBreach ? t.error : t.borderStrong;
+  const amountColor = hasAmount ? t.textPrimary : t.textMuted;
+  const runLabel = hasAmount ? ('leaves you ' + short(runAfter)) : 'not counted yet';
+  const runColor = hasAmount ? (runAfter < MIN_BALANCE ? t.error : t.textMuted) : t.amber;
+  const ampId = 'amt-' + b.id;
+  const bottomRight = hasAmount
+    ? `<span class="row-tag">Unpaid</span><button class="ghost-pill" type="button" onclick="notAvailableYet('Partial payments')">Part pay</button>`
+    : `<button class="filled-pill" type="button" onclick="document.getElementById('${ampId}').focus()">Enter amount</button>`;
 
   return `
-  <div class="bill-card" style="background:${cardBg};border-color:${borderColor};opacity:${opacity}">
-    <div class="bill-row1">
-      <input type="checkbox" ${b.paid?'checked':''} onchange="toggleBillPaid('${b.id}')">
-      <input type="text" class="bill-name-input" value="${escapeHtml(b.name)}" onchange="updateBillField('${b.id}','name',this.value)">
-      <span class="badge" style="background:${catBg};color:${catColor};border:2px solid ${catColor}">${escapeHtml(b.category)}</span>
-      <span class="badge" style="background:${dueBg};color:${dueTextColor}">${dueText}</span>
-      ${b.recurring ? '<span title="Recurring monthly">\u{1F501}</span>' : ''}
-      <button class="delete-btn" onclick="deleteBillConfirm('${b.id}')">Delete</button>
+  <div class="bill-row" style="border:2px solid ${cardBorder}">
+    <div class="bill-row-top">
+      <label class="unpaid-check-wrap" title="Mark paid">
+        <input type="checkbox" onchange="toggleBillPaid('${b.id}')">
+        <span class="unpaid-check-box" style="border-color:${boxBorder}"></span>
+      </label>
+      <input type="text" class="row-name-input" value="${escapeHtml(b.name)}" placeholder="Name this bill" onchange="updateBillField('${b.id}','name',this.value)">
+      <span class="pill" style="color:${cs.color};background:${cs.bg}">${escapeHtml(b.category)}</span>
+      <span class="due-pill" style="background:${dueBg};color:${dueColor}">${dueLabelText}</span>
+      ${b.recurring ? '<span title="Repeats monthly">\u{1F501}</span>' : ''}
+      <div class="row-right">
+        <div class="row-amount-wrap">
+          ${hasAmount ? `<span class="row-amount-prefix" style="color:${amountColor}">$</span>` : ''}
+          <input type="text" id="${ampId}" class="row-amount-input" style="color:${amountColor}" value="${hasAmount ? Number(b.amount).toFixed(2) : ''}" placeholder="Not set" onblur="updateBillAmount('${b.id}', this.value)">
+        </div>
+        <div class="row-run-label" style="color:${runColor}">${runLabel}</div>
+      </div>
     </div>
-    <div class="bill-row2">
-      <div class="field-box field-amount">
-        <div class="field-label">AMOUNT</div>
-        <input type="text" value="${b.amount}" onblur="updateBillAmount('${b.id}', this.value)">
-      </div>
-      <div class="field-box field-conf">
-        <div class="field-label">CONFIRMATION #</div>
-        <input type="text" placeholder="—" value="${escapeHtml(b.confirmationNumber||'')}" onchange="updateBillField('${b.id}','confirmationNumber',this.value)">
-      </div>
-      <div class="field-box">
-        <div class="field-label">DUE DATE</div>
-        <input type="date" value="${b.dueDate||''}" onchange="updateBillField('${b.id}','dueDate',this.value)">
-      </div>
-      <div class="field-box">
-        <div class="field-label">CATEGORY</div>
-        <select onchange="updateBillField('${b.id}','category',this.value)">${catOptions}</select>
-      </div>
-      <div class="field-box">
-        <div class="field-label">RECURRING</div>
-        <button class="recur-btn" style="background:${b.recurring?t.primary:t.surface2};color:${b.recurring?t.textOnPrimary:t.textSecondary}" onclick="toggleRecurring('${b.id}')">${b.recurring?'\u{1F501} Monthly':'One-time'}</button>
-      </div>
-      <div class="running-box">
-        <div class="field-label">BALANCE AFTER</div>
-        <div class="running-value" style="color:${rbColor}">${fmtCurrency(rb)}</div>
-      </div>
+    <div class="bill-row-bottom">
+      <div class="row-progress-track"></div>
+      ${bottomRight}
+      <button class="ghost-pill" type="button" onclick="notAvailableYet('Receipt attachment')">Attach receipt</button>
+      <button class="more-btn" type="button" title="Edit bill" onclick="openEditModal('${b.id}')">&#8943;</button>
     </div>
   </div>`;
+}
+
+function buildPaidRow(b, t){
+  return `
+  <div class="paid-row">
+    <label class="paid-check-wrap" title="Mark unpaid">
+      <input type="checkbox" checked onchange="toggleBillPaid('${b.id}')">
+      <span class="paid-check-box">&#10003;</span>
+    </label>
+    <div class="paid-name-row">
+      <input type="text" class="paid-name-input" value="${escapeHtml(b.name)}" onchange="updateBillField('${b.id}','name',this.value)">
+      ${b.recurring ? '<span title="Repeats monthly">\u{1F501}</span>' : ''}
+    </div>
+    <div class="paid-amount">${fmtCurrency(b.amount)}</div>
+    <input type="text" class="paid-conf-input" placeholder="add confirmation #" value="${escapeHtml(b.confirmationNumber||'')}" onchange="updateBillField('${b.id}','confirmationNumber',this.value)">
+  </div>`;
+}
+
+function computeDonut(bills, t){
+  const order = PIE_CAT_ORDER.map(c => ({ key:c.key, name:c.name, color: c.colorHex || t[c.colorKey] }));
+  const slices = order.map(c => ({
+    name: c.name, color: c.color,
+    amount: bills.filter(b => b.category === c.key && b.amount != null).reduce((s,b) => s + b.amount, 0)
+  })).filter(c => c.amount > 0);
+  const total = slices.reduce((s,c) => s + c.amount, 0);
+  let acc = 0;
+  const stops = slices.map(c => {
+    const from = acc / total * 100; acc += c.amount;
+    return `${c.color} ${from.toFixed(2)}% ${(acc/total*100).toFixed(2)}%`;
+  }).join(', ');
+  const background = slices.length ? `conic-gradient(from -90deg, ${stops})` : t.surface2;
+  const legendHtml = slices.length
+    ? slices.map(c => `<div class="donut-legend-row"><span class="donut-swatch" style="background:${c.color}"></span><span class="donut-legend-name">${escapeHtml(c.name)}</span><span class="donut-legend-amt">${short(c.amount)}</span><span class="donut-legend-pct">${Math.round(c.amount/total*100)}%</span></div>`).join('')
+    : `<div class="empty-note">No categorized spending yet.</div>`;
+  return { background, total: slices.length ? total : 0, legendHtml };
+}
+
+function computeYearStrip(t){
+  const hist = state.history;
+  if (!hist.length) return { barsHtml: `<div class="empty-note">History builds after you start a new month.</div>`, caption: '' };
+  const max = Math.max(1, ...hist.map(h => h.totalBills));
+  const barsHtml = hist.map((h, i) => {
+    const isCurrent = i === hist.length - 1;
+    const heightPct = Math.max(6, h.totalBills / max * 100);
+    return `<div class="year-col"><div class="year-bar" style="height:${heightPct}%;background:${isCurrent ? t.primary : t.borderStrong}"></div><div class="year-bar-label">${escapeHtml(h.label)}</div></div>`;
+  }).join('');
+  const avg = hist.reduce((s,h) => s + h.totalBills, 0) / hist.length;
+  const highest = hist.reduce((a,b) => b.totalBills > a.totalBills ? b : a, hist[0]);
+  const caption = `Average ${short(avg)} a month · highest ${escapeHtml(highest.label)}`;
+  return { barsHtml, caption };
 }
 
 function buildCalendar(t, bills){
@@ -384,113 +557,125 @@ function buildCalendar(t, bills){
 function render(){
   applyTheme();
   const t = theme();
-  const bills = state.bills;
-  const starting = parseFloat(el('startingBalance').value) || 0;
-  const income = parseFloat(el('expectedIncome').value) || 0;
-  const balanceNum = calculateBalance(bills, starting, income);
-  const balanceKey = balanceNum < MIN_BALANCE ? 'danger' : balanceNum < MIN_BALANCE + 200 ? 'warning' : 'safe';
-  const balanceBg = { safe:t.primary, warning:t.amber, danger:t.error }[balanceKey];
-  const balanceShadow = { safe:t.shadowPrimary, warning:t.shadowAccent, danger:t.shadowAccent }[balanceKey];
-  const balanceTextOn = balanceKey === 'warning' ? t.textOnAccent : (state.isLight ? t.textOnAccent : t.bg);
-  const balanceStatus = { safe:'✓ Safe to continue', warning:'⚠ Close to minimum', danger:'\u{1F6D1} Stop paying bills' }[balanceKey];
+  const { bills, balance, owed, projected, savings } = computeFigures();
 
-  const totalBills = bills.reduce((s,b)=>s+b.amount,0);
-  const totalPaid = bills.filter(b=>b.paid).reduce((s,b)=>s+b.amount,0);
-  const unpaidBills = bills.filter(b=>!b.paid).reduce((s,b)=>s+b.amount,0);
-  const paidCount = bills.filter(b=>b.paid).length;
-  const progressPct = totalBills > 0 ? (totalPaid/totalBills*100) : 0;
+  // Move to savings
+  el('savingsFigure').textContent = short(savings);
+  el('savingsBalanceNow').textContent = short(balance);
+  el('savingsOwed').textContent = '− ' + short(owed);
+  el('savingsFloorLine').textContent = '− ' + short(MIN_BALANCE);
+  el('savingsFreeToMove').textContent = short(savings);
+  const transferBtn = el('transferBtn');
+  transferBtn.disabled = savings <= 0;
+  if (savings > 0) {
+    transferBtn.textContent = `Transfer ${short(savings)} to savings`;
+    transferBtn.style.background = t.ink;
+    transferBtn.style.color = t.success;
+  } else {
+    transferBtn.textContent = 'Transfer unavailable';
+    transferBtn.style.background = 'rgba(6,33,25,0.25)';
+    transferBtn.style.color = 'rgba(6,33,25,0.55)';
+  }
+  const noAmountCountAll = bills.filter(b => !b.paid && b.amount == null).length;
+  el('savingsFootnote').textContent = noAmountCountAll
+    ? `${noAmountCountAll} bill${noAmountCountAll === 1 ? '' : 's'} ${noAmountCountAll === 1 ? 'has' : 'have'} no amount yet — not included.`
+    : 'Every bill has an amount.';
 
-  el('statTotalBills').textContent = fmtCurrency(totalBills);
-  el('statPaid').textContent = fmtCurrency(totalPaid);
-  el('statRemaining').textContent = fmtCurrency(unpaidBills);
-  el('statProgress').textContent = progressPct.toFixed(0) + '%';
+  // After every bill
+  el('projectedFigure').textContent = fmtCurrency(projected);
+  const floorPct = Math.max(0, Math.min(100, Math.round(savings / Math.max(1, projected) * 100)));
+  el('projectedMeterFill').style.width = floorPct + '%';
+  el('projectedNote').textContent = savings > 0 ? `${short(savings)} above your ${short(MIN_BALANCE)} floor` : `At your ${short(MIN_BALANCE)} floor`;
 
-  el('dueDateDescription').textContent = `Bills default to the ${new Date().getDate() <= 15 ? '15th' : 'end-of-month'} due date this cycle`;
+  // Where the month goes
+  const donut = computeDonut(bills, t);
+  el('donutGradient').style.background = donut.background;
+  el('donutTotal').textContent = short(donut.total);
+  el('donutLegend').innerHTML = donut.legendHtml;
 
-  const bb = el('balanceBanner');
-  bb.style.background = balanceBg;
-  bb.style.boxShadow = `0 8px 0 ${balanceShadow}`;
-  bb.classList.toggle('pulse', balanceKey === 'danger');
-  el('balanceAmount').textContent = fmtCurrency(balanceNum);
-  el('balanceAmount').style.color = balanceTextOn;
-  el('balanceStatus').textContent = balanceStatus;
-  el('balanceStatus').style.color = balanceTextOn;
-  bb.querySelector('.b-label').style.color = balanceTextOn;
+  // Year strip
+  const year = computeYearStrip(t);
+  el('yearStripLabel').textContent = new Date().getFullYear() + ' so far';
+  el('yearStripBars').innerHTML = year.barsHtml;
+  el('yearStripCaption').textContent = year.caption;
 
-  el('progressPercentLabel').textContent = progressPct.toFixed(0) + '%';
-  el('progressFill').style.width = progressPct + '%';
-  el('progressCountLabel').textContent = `${paidCount} / ${bills.length}`;
-
-  const hasUnpaid = bills.some(b => !b.paid);
-  let savingsAmount = 0, savingsNote = '';
-  if (hasUnpaid) savingsNote = 'Pay all bills first before transferring';
-  else if (balanceNum > MIN_BALANCE) { savingsAmount = balanceNum - MIN_BALANCE; savingsNote = `Safe to transfer (keeping ${fmtCurrency(MIN_BALANCE)} minimum)`; }
-  else savingsNote = 'All bills paid — no excess funds to transfer';
-  const savingsBg = hasUnpaid ? t.surface2 : (savingsAmount > 0 ? t.success : t.surface2);
-  const savingsTextOn = (hasUnpaid || savingsAmount === 0) ? t.textSecondary : t.textOnAccent;
-  const sb = el('savingsBanner');
-  sb.style.background = savingsBg;
-  el('savingsAmount').textContent = fmtCurrency(savingsAmount);
-  el('savingsAmount').style.color = savingsTextOn;
-  el('savingsNote').textContent = savingsNote;
-  el('savingsNote').style.color = savingsTextOn;
-  sb.querySelector('.s-label').style.color = savingsTextOn;
-
-  const cardEntries = bills.map((b,i) => [b.name, b.amount, i]).sort((a,b) => b[1]-a[1]);
-  const maxCard = cardEntries.length ? cardEntries[0][1] : 1;
-  el('spendingByCard').innerHTML = cardEntries.length ? cardEntries.map(([name, amt, i]) => {
-    const color = t[CAT_PALETTE[i % CAT_PALETTE.length].colorKey];
-    const pct = Math.max(4, maxCard ? (amt/maxCard*100) : 0);
-    return `<div class="bar-row"><div class="bar-row-head"><span>${escapeHtml(name)}</span><span>${fmtCurrency(amt)}</span></div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div></div>`;
-  }).join('') : `<div class="empty-note">No bills yet.</div>`;
-
-  const historySlice = state.history.slice(-6);
-  const maxHist = Math.max(1, ...historySlice.map(h => h.totalBills));
-  el('monthlyTrend').innerHTML = historySlice.length ? `<div class="trend-chart">${historySlice.map(h => {
-    const totalPct = Math.max(6, h.totalBills/maxHist*100);
-    const paidPct = Math.max(0, h.totalPaid/maxHist*100);
-    return `<div class="trend-col"><div class="trend-bar-outer" style="height:${totalPct}%"><div class="trend-bar-inner" style="height:${paidPct}%"></div></div><div class="trend-label">${escapeHtml(h.label)}</div></div>`;
-  }).join('')}</div>` : `<div class="empty-note">History builds after you start a new month.</div>`;
+  // Header
+  el('monthLabel').textContent = new Date().toLocaleString('en-US', { month:'long', year:'numeric' });
+  const withAmount = bills.filter(b => b.amount != null).length;
+  const paidCountAll = bills.filter(b => b.paid).length;
+  const upcoming = bills.filter(b => !b.paid && b.amount != null && b.dueDate).sort((a,b) => a.dueDate.localeCompare(b.dueDate))[0];
+  el('headerNote').textContent = `${withAmount} of ${bills.length} bills have amounts · ${paidCountAll} paid` + (upcoming ? ` · next due ${shortDateLabel(upcoming.dueDate)}` : '');
 
   el('viewListBtn').classList.toggle('active', state.view === 'list');
   el('viewCalBtn').classList.toggle('active', state.view === 'calendar');
+  el('viewYearBtn').classList.remove('active');
 
-  let runningBalance = starting + income;
+  // Floor-stop notice
+  const blocked = state.blocked;
+  el('blockedNotice').style.display = blocked ? 'flex' : 'none';
+  if (blocked) {
+    el('blockedLine').textContent = `Paying ${blocked.name} (${fmtCurrency(blocked.amount)}) would leave ${fmtCurrency(blocked.after)} — under your ${short(MIN_BALANCE)} floor. Left unpaid.`;
+  }
+
+  // Running balance in original, unfiltered bill order (unpaid rows only).
+  let run = balance;
   const runningMap = {};
-  bills.forEach(b => { if (b.paid) runningBalance -= b.amount; runningMap[b.id] = runningBalance; });
+  bills.forEach(b => {
+    if (b.paid) return;
+    runningMap[b.id] = run;
+    if (b.amount != null) run -= b.amount;
+  });
 
   const todayStr = fmtDateInput(new Date());
+  const smartStr = fmtDateInput(getSmartDueDate());
   const search = el('searchBills').value.toLowerCase();
   const filterStatus = el('filterStatus').value;
-  const filtered = bills.filter(b => {
+  const matches = (b) => {
     if (!b.name.toLowerCase().includes(search)) return false;
     if (filterStatus === 'paid') return b.paid;
     if (filterStatus === 'unpaid') return !b.paid;
-    if (filterStatus === 'overdue') return !b.paid && b.dueDate && b.dueDate < todayStr;
+    if (filterStatus === 'overdue') return !b.paid && b.amount != null && b.dueDate && b.dueDate < todayStr;
     if (filterStatus === 'due-soon') {
-      if (b.paid || !b.dueDate) return false;
-      const days = Math.ceil((new Date(b.dueDate) - new Date(todayStr)) / 86400000);
+      if (b.paid || b.amount == null || !b.dueDate) return false;
+      const days = Math.ceil((parseLocalDate(b.dueDate) - parseLocalDate(todayStr)) / 86400000);
       return days >= 0 && days <= 3;
     }
+    if (filterStatus === 'no-amount') return b.amount == null;
     return true;
-  });
+  };
 
   if (state.view === 'list') {
-    el('billsListView').style.display = '';
     el('calendarView').style.display = 'none';
-    el('billsListView').innerHTML = filtered.length ? filtered.map(b => buildBillCard(b, t, runningMap[b.id], todayStr)).join('') : `<div class="no-results">No bills match your search.</div>`;
+
+    const unpaidAll = bills.filter(b => !b.paid);
+    const paidAll = bills.filter(b => b.paid);
+    const unpaidFiltered = unpaidAll.filter(matches);
+    const paidFiltered = paidAll.filter(matches);
+
+    const dueThisCycleCount = unpaidAll.filter(b => b.amount != null && b.dueDate === smartStr).length;
+    const noAmountUnpaid = unpaidAll.filter(b => b.amount == null).length;
+    el('unpaidSection').style.display = unpaidAll.length ? 'block' : 'none';
+    el('unpaidMeta').textContent = `${fmtCurrency(owed)} · ${dueThisCycleCount} due ${shortDateLabel(smartStr)}` + (noAmountUnpaid ? ` · ${noAmountUnpaid} awaiting an amount` : '');
+    el('payAllBtn').textContent = unpaidAll.length === 1 ? 'Pay it' : `Pay all ${unpaidAll.length}`;
+    el('unpaidListView').innerHTML = unpaidFiltered.length
+      ? unpaidFiltered.map(b => buildUnpaidRow(b, t, runningMap[b.id], todayStr, smartStr, balance)).join('')
+      : (unpaidAll.length ? `<div class="empty-note">No unpaid bills match your search.</div>` : '');
+
+    const paidSumAll = paidAll.reduce((s,b) => s + (b.amount || 0), 0);
+    el('paidSection').style.display = paidAll.length ? 'block' : 'none';
+    el('paidMeta').textContent = fmtCurrency(paidSumAll);
+    el('paidListView').innerHTML = paidFiltered.length
+      ? paidFiltered.map(b => buildPaidRow(b, t)).join('')
+      : (paidAll.length ? `<div class="empty-note">No paid bills match your search.</div>` : '');
+
+    el('noResultsNote').style.display = bills.length === 0 ? 'block' : 'none';
   } else {
-    el('billsListView').style.display = 'none';
+    el('unpaidSection').style.display = 'none';
+    el('paidSection').style.display = 'none';
+    el('noResultsNote').style.display = 'none';
     el('calendarView').style.display = '';
     el('calendarView').innerHTML = buildCalendar(t, bills);
   }
-
-  el('sumTotalBills').textContent = fmtCurrency(totalBills);
-  el('sumTotalPaid').textContent = fmtCurrency(totalPaid);
-  el('sumUnpaidBills').textContent = fmtCurrency(unpaidBills);
-  el('sumIncome').textContent = fmtCurrency(income);
-  el('sumFinal').textContent = fmtCurrency(balanceNum);
-  el('sumFinal').style.color = balanceNum < MIN_BALANCE ? t.error : t.textPrimary;
 
   renderToasts();
 }
@@ -522,7 +707,7 @@ function init(){
   if (saved) {
     try {
       const d = JSON.parse(saved);
-      if (d.bills && d.bills.length) bills = d.bills.map(b => ({ recurring:false, category:'Other', confirmationNumber:'', ...b, id: b.id || uid() }));
+      if (d.bills && d.bills.length) bills = d.bills.map(b => ({ recurring:false, category:'Other', confirmationNumber:'', ...b, id: b.id || uid(), amount: normalizeAmount(b.amount) }));
       if (d.startingBalance != null) startingBalance = String(d.startingBalance);
       if (d.expectedIncome != null) expectedIncome = String(d.expectedIncome);
     } catch(e){}
@@ -532,7 +717,7 @@ function init(){
       try {
         const d = JSON.parse(old);
         if (d.bills && d.bills.length) {
-          bills = d.bills.map(b => ({ id: uid(), name:b.name, amount:b.amount, paid:!!b.paid, confirmationNumber:b.confirmationNumber||'', dueDate:b.dueDate||smart, category:b.category||'Other', recurring:false }));
+          bills = d.bills.map(b => ({ id: uid(), name:b.name, amount: normalizeAmount(b.amount), paid:!!b.paid, confirmationNumber:b.confirmationNumber||'', dueDate:b.dueDate||smart, category:b.category||'Other', recurring:false }));
           migrated = true;
         }
         if (d.startingBalance != null) startingBalance = String(d.startingBalance);
@@ -544,6 +729,7 @@ function init(){
   el('startingBalance').value = startingBalance;
   el('expectedIncome').value = expectedIncome;
   state.bills = bills;
+  state.blocked = null;
 
   let history = [];
   try { history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e){}
@@ -560,6 +746,27 @@ function init(){
 
   persistData();
 
+  el('themeToggleBtn').addEventListener('click', toggleTheme);
+  el('viewListBtn').addEventListener('click', () => setView('list'));
+  el('viewCalBtn').addEventListener('click', () => setView('calendar'));
+  el('viewYearBtn').addEventListener('click', () => addToast("Year view isn't available yet"));
+  el('exportCsvBtn').addEventListener('click', exportCSV);
+  el('addBillBtn').addEventListener('click', openAddModal);
+  el('dismissBlockedBtn').addEventListener('click', dismissBlocked);
+  el('payAllBtn').addEventListener('click', payAllUnpaid);
+  el('importBackupBtn').addEventListener('click', () => el('fileInput').click());
+  el('downloadBackupBtn').addEventListener('click', downloadBackup);
+  el('startNewMonthBtn').addEventListener('click', startNewMonthConfirm);
+  el('addModalCancelBtn').addEventListener('click', closeAddModal);
+  el('addModalSubmitBtn').addEventListener('click', submitBillModal);
+  el('addModalDeleteBtn').addEventListener('click', deleteFromEditModal);
+  el('confirmCancelBtn').addEventListener('click', closeConfirmModal);
+  el('fileInput').addEventListener('change', handleImportFile);
+  el('transferBtn').addEventListener('click', () => {
+    const { savings } = computeFigures();
+    if (savings > 0) addToast(`Marked ${short(savings)} ready to move to savings`);
+  });
+
   el('startingBalance').addEventListener('input', () => { persistData(); render(); });
   el('expectedIncome').addEventListener('input', () => { persistData(); render(); });
   el('searchBills').addEventListener('input', render);
@@ -568,7 +775,7 @@ function init(){
   render();
   if (migrated) addToast('Imported your bills from the previous tracker');
 
-  const overdueCount = state.bills.filter(b => !b.paid && b.dueDate && b.dueDate < fmtDateInput(new Date())).length;
+  const overdueCount = state.bills.filter(b => !b.paid && b.amount != null && b.dueDate && b.dueDate < fmtDateInput(new Date())).length;
   if (overdueCount > 0) setTimeout(() => addToast(`You have ${overdueCount} overdue bill(s)`), 1200);
 }
 

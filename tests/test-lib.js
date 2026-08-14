@@ -43,13 +43,13 @@ function resetApp(bills, opts) {
   state.view = 'list';
   state.calOffset = 0;
   state.toasts = [];
+  state.blocked = null;
   el('startingBalance').value = opts.startingBalance != null ? opts.startingBalance : '1000';
   el('expectedIncome').value = opts.expectedIncome != null ? opts.expectedIncome : '0';
   el('searchBills').value = '';
   el('filterStatus').value = 'all';
   closeAddModal();
   closeConfirmModal();
-  closeStopModal();
   render();
 }
 
