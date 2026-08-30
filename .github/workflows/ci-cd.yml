@@ -1,0 +1,67 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment at a time; never cancel one that's already publishing.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify a Chrome/Chromium binary is available
+        run: |
+          command -v google-chrome || command -v google-chrome-stable || command -v chromium-browser || command -v chromium
+
+      - name: Run unit, integration, and regression suites
+        run: |
+          chmod +x tests/run-tests.sh
+          tests/run-tests.sh
+
+  build:
+    name: Build
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble the deployable site
+        # No bundler by design (see README.md) — this just packages the three files
+        # that make up the shipped app into a clean artifact, leaving tests/, the
+        # design handoff folders, and the *.md docs out of what gets published.
+        run: |
+          mkdir -p _site
+          cp index.html app.js style.css _site/
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
