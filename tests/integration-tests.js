@@ -308,19 +308,26 @@ test('handleImportFile replaces state from a backup JSON file and normalizes a m
     history: [{ label: 'Imp', totalBills: 75, totalPaid: 0 }]
   };
   const file = new File([JSON.stringify(payload)], 'backup.json', { type: 'application/json' });
+  handleImportFile({ target: { files: [file], value: '' } });
+  // FileReader completion is real async I/O, not a timer — its actual latency varies a
+  // lot between a fast local machine and a loaded CI runner. Poll for the effect rather
+  // than betting on a fixed delay, which is what made this test flaky under CI before.
   return new Promise((resolve, reject) => {
-    handleImportFile({ target: { files: [file], value: '' } });
-    setTimeout(() => {
-      try {
-        assertEqual(state.bills.length, 1);
-        assertEqual(state.bills[0].name, 'Imported Bill');
-        assertEqual(state.bills[0].amount, null, 'a missing amount field should normalize to null, not 0');
-        assertTrue(!!state.bills[0].id, 'imported bill should get an id assigned');
-        assertEqual(el('startingBalance').value, '999');
-        assertEqual(el('expectedIncome').value, '20');
-        resolve();
-      } catch (e) { reject(e); }
-    }, 200);
+    const deadline = Date.now() + 3000;
+    (function check(){
+      if (state.bills.length === 1 && state.bills[0].name === 'Imported Bill') {
+        try {
+          assertEqual(state.bills[0].amount, null, 'a missing amount field should normalize to null, not 0');
+          assertTrue(!!state.bills[0].id, 'imported bill should get an id assigned');
+          assertEqual(el('startingBalance').value, '999');
+          assertEqual(el('expectedIncome').value, '20');
+          resolve();
+        } catch (e) { reject(e); }
+        return;
+      }
+      if (Date.now() > deadline) { reject(new Error('handleImportFile did not complete within 3000ms')); return; }
+      setTimeout(check, 10);
+    })();
   });
 });
 
